@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 6 Practice — Making Decisions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">COMPUTER SCIENCE FOUNDATIONS</p>
+      <h1>Chapter 6: Making Decisions</h1>
+      <p class="subtitle">Interactive Practice Lab</p>
+    </div>
+    <div class="progress-card">
+      <span id="progressText">0 of 10 complete</span>
+      <div class="progress-track"><div id="progressBar"></div></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro card">
+      <h2>How this practice works</h2>
+      <p>Complete each question in order. If your answer is correct, it will be marked complete automatically. If it is incorrect, read the feedback and try again.</p>
+      <div class="legend">
+        <span><b>Lesson 1:</b> Logical Expressions</span>
+        <span><b>Lesson 2:</b> if Statements</span>
+        <span><b>Lesson 3:</b> Logical Operators</span>
+        <span><b>Lesson 4:</b> Complex Expressions</span>
+      </div>
+    </section>
+
+    <section id="questions"></section>
+
+    <section id="finishCard" class="card finish hidden">
+      <h2>Chapter 6 Practice Complete!</h2>
+      <p>You completed all 10 questions.</p>
+      <p class="score-line">Score: <strong id="scoreText">10 / 10</strong></p>
+      <button id="resetBtn" class="secondary">Reset Practice</button>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
