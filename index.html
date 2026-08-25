@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Chapter 6 Practice — Making Decisions</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=4" />
 </head>
 <body>
   <header class="hero">
@@ -14,7 +14,7 @@
       <p class="subtitle">Interactive Practice Lab</p>
     </div>
     <div class="progress-card">
-      <span id="progressText">0 of 10 complete</span>
+      <span id="progressText">Lesson 1 of 4</span>
       <div class="progress-track"><div id="progressBar"></div></div>
     </div>
   </header>
@@ -22,25 +22,20 @@
   <main>
     <section class="intro card">
       <h2>How this practice works</h2>
-      <p>Complete each question in order. If your answer is correct, it will be marked complete automatically. If it is incorrect, read the feedback and try again.</p>
-      <div class="legend">
-        <span><b>Lesson 1:</b> Logical Expressions</span>
-        <span><b>Lesson 2:</b> if Statements</span>
-        <span><b>Lesson 3:</b> Logical Operators</span>
-        <span><b>Lesson 4:</b> Complex Expressions</span>
-      </div>
+      <p>Work through one lesson at a time. Answer the questions, complete the short Python coding scenario, then click <b>Check Lesson Results</b>. Review anything you missed before clicking <b>Next Lesson</b>.</p>
+      <div class="lesson-tabs" id="lessonTabs"></div>
     </section>
 
-    <section id="questions"></section>
+    <section id="lessonView"></section>
 
     <section id="finishCard" class="card finish hidden">
       <h2>Chapter 6 Practice Complete!</h2>
-      <p>You completed all 10 questions.</p>
-      <p class="score-line">Score: <strong id="scoreText">10 / 10</strong></p>
-      <button id="resetBtn" class="secondary">Reset Practice</button>
+      <p>You worked through all four Chapter 6 lessons and four coding challenges.</p>
+      <p class="score-line" id="finalScore"></p>
+      <button id="resetBtn" class="secondary">Restart Practice</button>
     </section>
   </main>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=4"></script>
 </body>
 </html>
