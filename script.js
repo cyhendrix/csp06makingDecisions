@@ -3,6 +3,7 @@ const questions = [
     lesson:'Lesson 1',
     title:'Boolean Values',
     prompt:'Which two values can a Boolean hold?',
+    highlight:['Boolean'],
     options:['True and False','1 and 0','Any two numbers','Yes and Maybe'],
     answer:0,
     feedback:'A Boolean has only two possible values: True or False.'
@@ -54,6 +55,7 @@ const questions = [
     lesson:'Lesson 3',
     title:'Logical AND',
     prompt:'When does the logical operator and give a result of True?',
+    highlight:['and'],
     options:['When both conditions are True','When either condition is True','Only when both conditions are False','Whenever one condition is False'],
     answer:0,
     feedback:'and means BOTH. The result is True only when both conditions are True.'
@@ -61,7 +63,8 @@ const questions = [
   {
     lesson:'Lesson 3',
     title:'Logical OR',
-    prompt:'food = "milkshake" and flavor = "chocolate". What is the result?',
+    prompt:'food = "milkshake" and flavor = "chocolate". What is the result of the Boolean expression below?',
+    highlight:['Boolean'],
     code:'food == "pizza" or flavor == "chocolate"',
     options:['True','False','pizza','chocolate'],
     answer:0,
@@ -70,7 +73,8 @@ const questions = [
   {
     lesson:'Lesson 3',
     title:'Logical NOT',
-    prompt:'food = "hamburger". What is the result?',
+    prompt:'food = "hamburger". What is the result of the Boolean expression below?',
+    highlight:['Boolean'],
     code:'not (food == "hamburger")',
     options:['True','False','hamburger','Error'],
     answer:1,
@@ -92,6 +96,19 @@ const progressText = document.getElementById('progressText');
 const progressBar = document.getElementById('progressBar');
 const finishCard = document.getElementById('finishCard');
 
+function escapeHtml(str){
+  return str.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
+}
+
+function highlightPrompt(text, words=[]){
+  let safe=escapeHtml(text);
+  words.forEach(word=>{
+    const escaped=word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    safe=safe.replace(new RegExp(`\\b(${escaped})\\b`,'gi'),'<span class="keyword-highlight">$1</span>');
+  });
+  return safe;
+}
+
 function render(){
   questionsEl.innerHTML='';
   questions.forEach((q,i)=>{
@@ -101,7 +118,7 @@ function render(){
     const done=completed.has(i);
     card.innerHTML=`
       <div class="qtop"><h2>Question ${i+1}: ${q.title}</h2><span class="badge">${q.lesson}</span></div>
-      <p class="prompt">${q.prompt}</p>
+      <p class="prompt">${highlightPrompt(q.prompt,q.highlight||[])}</p>
       ${q.code?`<div class="code">${escapeHtml(q.code)}</div>`:''}
       <div class="options">
         ${q.options.map((o,j)=>`<button class="option" data-q="${i}" data-o="${j}" ${done?'disabled':''}>${escapeHtml(o)}</button>`).join('')}
@@ -146,10 +163,6 @@ function updateProgress(){
     finishCard.classList.remove('hidden');
     document.getElementById('scoreText').textContent=`${count} / ${questions.length} (100%)`;
   } else finishCard.classList.add('hidden');
-}
-
-function escapeHtml(str){
-  return str.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));
 }
 
 document.getElementById('resetBtn').addEventListener('click',()=>{
