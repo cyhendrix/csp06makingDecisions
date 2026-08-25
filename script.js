@@ -79,6 +79,23 @@ const finishCard = document.getElementById('finishCard');
 function escapeHtml(str){return str.replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[c]));}
 function highlightPrompt(text,words=[]){let safe=escapeHtml(text);words.forEach(word=>{const escaped=word.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');safe=safe.replace(new RegExp(`\\b(${escaped})\\b`,'gi'),'<span class="keyword-highlight">$1</span>')});return safe;}
 
+function shuffleArray(items){
+  const copy=[...items];
+  for(let i=copy.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [copy[i],copy[j]]=[copy[j],copy[i]];
+  }
+  return copy;
+}
+
+function makeOptionOrders(){
+  return lessons.map(lesson=>lesson.questions.map(q=>
+    shuffleArray(q.options.map((text,originalIndex)=>({text,originalIndex})))
+  ));
+}
+
+let optionOrders=makeOptionOrders();
+
 function renderTabs(){
   lessonTabs.innerHTML=lessons.map((l,i)=>`<button class="lesson-tab ${i===currentLesson?'active':''} ${lessonChecked[i]?'done':''}" data-lesson="${i}">Lesson ${i+1}</button>`).join('');
   document.querySelectorAll('.lesson-tab').forEach(b=>b.addEventListener('click',()=>{currentLesson=Number(b.dataset.lesson);render();window.scrollTo({top:0,behavior:'smooth'});}));
@@ -93,7 +110,8 @@ function render(){
 
   let html=`<section class="card lesson-header"><h2>${lesson.title}</h2><p class="lesson-subtitle">${lesson.subtitle}</p></section>`;
   lesson.questions.forEach((q,qi)=>{
-    html+=`<article class="card question"><div class="qtop"><h2>Question ${qi+1}: ${q.title}</h2><span class="badge">Lesson ${currentLesson+1}</span></div><p class="prompt">${highlightPrompt(q.prompt,q.highlight||[])}</p>${q.code?`<div class="code">${escapeHtml(q.code)}</div>`:''}<div class="options">${q.options.map((o,oi)=>`<button class="option ${answers[currentLesson][qi]===oi?'selected':''}" data-q="${qi}" data-o="${oi}">${escapeHtml(o)}</button>`).join('')}</div><div class="feedback" id="feedback-${qi}"></div></article>`;
+    const shuffled=optionOrders[currentLesson][qi];
+    html+=`<article class="card question"><div class="qtop"><h2>Question ${qi+1}: ${q.title}</h2><span class="badge">Lesson ${currentLesson+1}</span></div><p class="prompt">${highlightPrompt(q.prompt,q.highlight||[])}</p>${q.code?`<div class="code">${escapeHtml(q.code)}</div>`:''}<div class="options">${shuffled.map(item=>`<button class="option ${answers[currentLesson][qi]===item.originalIndex?'selected':''}" data-q="${qi}" data-o="${item.originalIndex}">${escapeHtml(item.text)}</button>`).join('')}</div><div class="feedback" id="feedback-${qi}"></div></article>`;
   });
 
   const c=lesson.coding;
@@ -102,7 +120,12 @@ function render(){
   html+=`<div class="lesson-actions"><button class="primary" id="checkBtn">Check Lesson Results</button>${currentLesson>0?'<button class="secondary" id="backBtn">Previous Lesson</button>':''}<button class="next-btn" id="nextBtn" ${lessonChecked[currentLesson]?'':'disabled'}>${currentLesson===lessons.length-1?'Finish Practice':'Next Lesson'}</button></div>`;
   lessonView.innerHTML=html;
 
-  document.querySelectorAll('.option').forEach(btn=>btn.addEventListener('click',e=>{const qi=Number(e.currentTarget.dataset.q),oi=Number(e.currentTarget.dataset.o);answers[currentLesson][qi]=oi;document.querySelectorAll(`[data-q="${qi}"]`).forEach(b=>b.classList.remove('selected'));e.currentTarget.classList.add('selected');}));
+  document.querySelectorAll('.option').forEach(btn=>btn.addEventListener('click',e=>{
+    const qi=Number(e.currentTarget.dataset.q),oi=Number(e.currentTarget.dataset.o);
+    answers[currentLesson][qi]=oi;
+    document.querySelectorAll(`[data-q="${qi}"]`).forEach(b=>b.classList.remove('selected'));
+    e.currentTarget.classList.add('selected');
+  }));
   document.getElementById('codeEntry').addEventListener('input',e=>codeEntries[currentLesson]=e.target.value);
   document.getElementById('checkBtn').addEventListener('click',checkLesson);
   const back=document.getElementById('backBtn'); if(back) back.addEventListener('click',()=>{currentLesson--;render();window.scrollTo({top:0,behavior:'smooth'});});
@@ -116,8 +139,14 @@ function checkLesson(){
   lesson.questions.forEach((q,qi)=>{
     const chosen=answers[currentLesson][qi];
     const fb=document.getElementById(`feedback-${qi}`);
-    document.querySelectorAll(`[data-q="${qi}"]`).forEach((b,oi)=>{b.classList.remove('correct','incorrect');if(chosen!==null&&oi===chosen)b.classList.add(chosen===q.answer?'correct':'incorrect');});
-    if(chosen===q.answer){score++;fb.className='feedback good';fb.textContent='✓ '+q.feedback;}else if(chosen===null){fb.className='feedback bad';fb.textContent='Choose an answer, then check again.';}else{fb.className='feedback bad';fb.textContent='Not quite. Review this question and try again.';}
+    document.querySelectorAll(`[data-q="${qi}"]`).forEach(b=>{
+      const oi=Number(b.dataset.o);
+      b.classList.remove('correct','incorrect');
+      if(chosen!==null&&oi===chosen)b.classList.add(chosen===q.answer?'correct':'incorrect');
+    });
+    if(chosen===q.answer){score++;fb.className='feedback good';fb.textContent='✓ '+q.feedback;}
+    else if(chosen===null){fb.className='feedback bad';fb.textContent='Choose an answer, then check again.';}
+    else{fb.className='feedback bad';fb.textContent='Not quite. Review this question and try again.';}
   });
 
   const code=codeEntries[currentLesson];
@@ -155,10 +184,21 @@ function showFinish(){
   const total=lessonScores.reduce((a,b)=>a+b,0);
   const possible=lessons.reduce((a,l)=>a+l.questions.length,0);
   document.getElementById('finalScore').textContent=`Question results: ${total} / ${possible}. You also completed four Python coding scenarios.`;
-  progressText.textContent='Practice complete';progressBar.style.width='100%';renderTabs();
+  progressText.textContent='Practice complete';
+  progressBar.style.width='100%';
+  renderTabs();
   finishCard.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
-document.getElementById('resetBtn').addEventListener('click',()=>{currentLesson=0;answers.forEach(a=>a.fill(null));lessonChecked.fill(false);lessonScores.fill(0);codeEntries.fill('');render();window.scrollTo({top:0,behavior:'smooth'});});
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  currentLesson=0;
+  answers.forEach(a=>a.fill(null));
+  lessonChecked.fill(false);
+  lessonScores.fill(0);
+  codeEntries.fill('');
+  optionOrders=makeOptionOrders();
+  render();
+  window.scrollTo({top:0,behavior:'smooth'});
+});
 
 render();
