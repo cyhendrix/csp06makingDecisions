@@ -53,10 +53,10 @@ const questions = [
   {
     lesson:'Lesson 3',
     title:'Logical AND',
-    prompt:'When is an expression joined with and True?',
-    options:['When both expressions are True','When either expression is True','Only when both are False','Whenever one expression is False'],
+    prompt:'When does the logical operator and give a result of True?',
+    options:['When both conditions are True','When either condition is True','Only when both conditions are False','Whenever one condition is False'],
     answer:0,
-    feedback:'and requires BOTH joined expressions to be True.'
+    feedback:'and means BOTH. The result is True only when both conditions are True.'
   },
   {
     lesson:'Lesson 3',
