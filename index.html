@@ -13,13 +13,13 @@
       <h1>Chapter 6: Making Decisions</h1>
       <p class="subtitle">Interactive Practice Lab</p>
     </div>
-    <div class="progress-card">
+    <div class="progress-card" id="labProgress" hidden>
       <span id="progressText">Lesson 1 of 4</span>
       <div class="progress-track"><div id="progressBar"></div></div>
     </div>
   </header>
 
-  <main>
+  <section id="studentScreen" class="student-screen"><div class="student-card"><h2>✦ Student Information</h2><div class="student-inside"><p>Enter your first name, last name, and class period. Then click <strong>Begin Practice Lab</strong>.</p><form id="studentForm"><div class="student-fields"><div><label for="studentFirst">First Name</label><input id="studentFirst" placeholder="First Name" required autocomplete="given-name"></div><div><label for="studentLast">Last Name</label><input id="studentLast" placeholder="Last Name" required autocomplete="family-name"></div><div><label for="studentPeriod">Class Period</label><select id="studentPeriod" required><option value="">Choose a class period</option><option>3rd Block</option></select></div></div><button class="begin-button" type="submit">Begin Practice Lab</button><p id="studentError" role="alert"></p></form><p class="student-note">Complete each lesson and check your answers as you go.</p></div></div></section><main id="labContent" hidden>
     <section class="intro card">
       <h2>How this practice works</h2>
       <p>Work through one lesson at a time. Answer the questions, complete the short Python coding scenario, then click <b>Check Lesson Results</b>. Review anything you missed before clicking <b>Next Lesson</b>.</p>
@@ -37,5 +37,20 @@
   </main>
 
   <script src="script.js?v=4"></script>
-</body>
+<script>
+(function(){
+const key='csp06-student-info';
+const first=document.getElementById('studentFirst'),last=document.getElementById('studentLast'),period=document.getElementById('studentPeriod');
+try{const v=JSON.parse(localStorage.getItem(key)||'null');if(v){first.value=v.first||'';last.value=v.last||'';period.value=v.period||''}}catch(e){}
+document.getElementById('studentForm').addEventListener('submit',function(e){
+e.preventDefault();const v={first:first.value.trim(),last:last.value.trim(),period:period.value};
+if(!v.first||!v.last||!v.period){document.getElementById('studentError').textContent='Please complete all three fields.';return;}
+localStorage.setItem(key,JSON.stringify(v));
+document.getElementById('studentScreen').hidden=true;
+document.getElementById('labContent').hidden=false;
+document.getElementById('labProgress').hidden=false;
+window.scrollTo(0,0);
+});
+})();
+</script></body>
 </html>
