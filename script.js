@@ -159,10 +159,10 @@ async function checkCode(){
   const py=await loadPython();
   // A small AST-based runner prevents imports, file access, loops, and other
   // unrelated Python features while allowing the expressions in these lessons.
-  const harness=String.raw\`
+  const harness=String.raw`
 import ast, json, io, contextlib
-source = \${JSON.stringify(code)}
-tests = json.loads(\${JSON.stringify(JSON.stringify(pythonTests[lessonIndex]))})
+source = ${JSON.stringify(code)}
+tests = json.loads(${JSON.stringify(JSON.stringify(pythonTests[lessonIndex]))})
 allowed = (ast.Module,ast.Assign,ast.Name,ast.Store,ast.Load,ast.Constant,ast.Expr,
            ast.Call,ast.Compare,ast.Gt,ast.GtE,ast.Lt,ast.LtE,ast.Eq,ast.NotEq,
            ast.If,ast.BoolOp,ast.And,ast.Or,ast.Not,ast.UnaryOp,ast.USub,
@@ -197,7 +197,7 @@ try:
 except Exception as exc:
     result["error"]=type(exc).__name__+": "+str(exc)
 json.dumps(result)
-\`;
+`;
   const raw=await py.runPythonAsync(harness);
   if(currentLesson!==lessonIndex)return;
   const report=JSON.parse(raw),pass=!report.error&&checks.every(x=>x.pass)&&report.runs.length===pythonTests[lessonIndex].length&&report.runs.every(x=>x.pass);
