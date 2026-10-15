@@ -57,12 +57,12 @@ let optionOrders=makeOptionOrders();
 function lessonReady(i){return questionCorrect[i].every(Boolean)&&codingPassed[i];}
 
 function renderTabs(){
- lessonTabs.innerHTML=lessons.map((l,i)=>`<button class="lesson-tab ${i===currentLesson?'active':''} ${lessonReady(i)?'done':''}" data-lesson="${i}">Lesson ${i+1}</button>`).join('');
- document.querySelectorAll('.lesson-tab').forEach(b=>b.addEventListener('click',()=>{currentLesson=Number(b.dataset.lesson);render();window.scrollTo({top:0,behavior:'smooth'});}));
+ lessonTabs.innerHTML=lessons.map((l,i)=>`<button class="lesson-tab ${i===currentLesson?'active':''} ${lessonReady(i)?'done':''}" data-lesson="${i}">Lesson ${i+1}</button>`).join('')+`<button class="lesson-tab ${currentLesson===lessons.length?'active':''}" id="resultsTab">Results</button>`;
+ document.querySelectorAll('[data-lesson]').forEach(b=>b.addEventListener('click',()=>{currentLesson=Number(b.dataset.lesson);render();window.scrollTo({top:0,behavior:'smooth'});}));document.getElementById('resultsTab').addEventListener('click',()=>{currentLesson=lessons.length;render();window.scrollTo({top:0,behavior:'smooth'});});
 }
 
 function render(){
- renderTabs(); const lesson=lessons[currentLesson];
+ renderTabs(); if(currentLesson===lessons.length){showFinish();return;} const lesson=lessons[currentLesson];
  progressText.textContent=`Lesson ${currentLesson+1} of ${lessons.length}`; progressBar.style.width=`${((currentLesson+1)/lessons.length)*100}%`; finishCard.classList.add('hidden');
  let html=`<section class="card lesson-header"><h2>${lesson.title}</h2><p class="lesson-subtitle">${lesson.subtitle}</p><p><strong>Multiple choice:</strong> Choose an answer and you will know immediately if it is correct. If it is incorrect, try again.</p></section>`;
  lesson.questions.forEach((q,qi)=>{const shuffled=optionOrders[currentLesson][qi]; const done=questionCorrect[currentLesson][qi];
@@ -70,13 +70,13 @@ function render(){
  });
  const c=lesson.coding;
  html+=`<section class="card coding-card"><h2>${c.title}</h2><div class="scenario"><strong>Scenario:</strong> ${c.scenario}</div><b>Your program should:</b><ul class="requirements">${c.requirements.map(r=>`<li>${r}</li>`).join('')}</ul><div class="starter">${escapeHtml(c.starter)}</div><textarea class="code-entry" id="codeEntry" spellcheck="false" placeholder="Type your Python code here...">${escapeHtml(codeEntries[currentLesson])}</textarea><button class="primary" id="checkCodeBtn">Check My Code</button><div class="feedback" id="codeFeedback"></div><div id="codeResults"></div></section>`;
- html+=`<div class="lesson-actions">${currentLesson>0?'<button class="secondary" id="backBtn">Previous Lesson</button>':''}<button class="next-btn" id="nextBtn" ${lessonReady(currentLesson)?'':'disabled'}>${currentLesson===lessons.length-1?'Finish Practice':'Next Lesson'}</button></div>`;
+ html+=`<div class="lesson-actions">${currentLesson>0?'<button class="secondary" id="backBtn">Previous Lesson</button>':''}<button class="secondary" id="clearLessonBtn" type="button">Clear This Lesson</button><button class="next-btn" id="nextBtn" ${lessonReady(currentLesson)?'':'disabled'}>${currentLesson===lessons.length-1?'View Results':'Next Lesson'}</button></div>`;
  lessonView.innerHTML=html;
  document.querySelectorAll('.option').forEach(btn=>btn.addEventListener('click',checkQuestionImmediately));
  document.getElementById('codeEntry').addEventListener('input',e=>{codeEntries[currentLesson]=e.target.value;codingChecked[currentLesson]=false;codingPassed[currentLesson]=false;document.getElementById('nextBtn').disabled=true;});
  document.getElementById('checkCodeBtn').addEventListener('click',checkCode);
  const back=document.getElementById('backBtn');if(back)back.addEventListener('click',()=>{currentLesson--;render();window.scrollTo({top:0,behavior:'smooth'});});
- document.getElementById('nextBtn').addEventListener('click',nextLesson);
+ document.getElementById('nextBtn').addEventListener('click',nextLesson);document.getElementById('clearLessonBtn').addEventListener('click',clearCurrentLesson);
  if(codingChecked[currentLesson])displayCodeResults();
 }
 
@@ -97,7 +97,23 @@ function displayCodeResults(precomputed=null){
  results.innerHTML=checks.map(x=>`<div class="result-row">${x.pass?'✓':'○'} ${x.label}</div>`).join('');
 }
 function updateNext(){document.getElementById('nextBtn').disabled=!lessonReady(currentLesson);renderTabs();}
-function nextLesson(){if(!lessonReady(currentLesson))return;if(currentLesson<lessons.length-1){currentLesson++;render();window.scrollTo({top:0,behavior:'smooth'});}else showFinish();}
-function showFinish(){lessonView.innerHTML='';finishCard.classList.remove('hidden');const correct=questionCorrect.reduce((n,a)=>n+a.filter(Boolean).length,0),possible=lessons.reduce((n,l)=>n+l.questions.length,0);document.getElementById('finalScore').textContent=`Multiple-choice questions: ${correct} / ${possible} correct. Coding scenarios: ${codingPassed.filter(Boolean).length} / ${lessons.length} complete.`;progressText.textContent='Practice complete';progressBar.style.width='100%';renderTabs();finishCard.scrollIntoView({behavior:'smooth',block:'center'});}
+function nextLesson(){if(!lessonReady(currentLesson))return;if(currentLesson<lessons.length-1){currentLesson++;render();window.scrollTo({top:0,behavior:'smooth'});}else{currentLesson=lessons.length;render();}}
+function clearCurrentLesson(){
+ const i=currentLesson;
+ if(!confirm('Clear Lesson '+(i+1)+'? Your other lessons will stay saved.'))return;
+ answers[i].fill(null);questionCorrect[i].fill(false);codingChecked[i]=false;codingPassed[i]=false;codeEntries[i]='';
+ optionOrders[i]=makeOptionOrders()[i];render();
+}
+function showFinish(){
+ lessonView.innerHTML='';finishCard.classList.remove('hidden');
+ const correct=questionCorrect.reduce((n,a)=>n+a.filter(Boolean).length,0),possible=lessons.reduce((n,l)=>n+l.questions.length,0);
+ document.getElementById('finalScore').textContent=`Multiple-choice questions: ${correct} / ${possible} correct. Coding scenarios: ${codingPassed.filter(Boolean).length} / ${lessons.length} complete.`;
+ document.getElementById('resultsBreakdown').innerHTML=lessons.map((l,i)=>`<div class="result-row"><strong>Lesson ${i+1}:</strong> ${questionCorrect[i].filter(Boolean).length} / ${l.questions.length} questions correct; coding ${codingPassed[i]?'complete':'incomplete'}</div>`).join('');
+ document.getElementById('submitResultsBtn').disabled=!lessons.every((_,i)=>lessonReady(i));
+ progressText.textContent='Results';progressBar.style.width='100%';
+}
+document.getElementById('submitResultsBtn').addEventListener('click',()=>{
+ document.getElementById('submissionStatus').textContent='Submission is not connected to a grade sheet yet. Your results have not been sent.';
+});
 document.getElementById('resetBtn').addEventListener('click',()=>{currentLesson=0;answers.forEach(a=>a.fill(null));questionCorrect.forEach(a=>a.fill(false));codingChecked.fill(false);codingPassed.fill(false);codeEntries.fill('');optionOrders=makeOptionOrders();render();window.scrollTo({top:0,behavior:'smooth'});});
 render();
