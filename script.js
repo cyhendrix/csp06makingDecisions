@@ -38,6 +38,12 @@ const lessons = [
 ];
 
 let currentLesson=0;
+const chapter6PageKey='csp06-current-lesson';
+try{
+ const savedPage=Number(localStorage.getItem(chapter6PageKey));
+ if(Number.isInteger(savedPage)&&savedPage>=0&&savedPage<=lessons.length)currentLesson=savedPage;
+}catch(e){}
+
 const answers=lessons.map(l=>Array(l.questions.length).fill(null));
 const questionCorrect=lessons.map(l=>Array(l.questions.length).fill(false));
 const codingChecked=Array(lessons.length).fill(false);
@@ -62,6 +68,7 @@ function renderTabs(){
 }
 
 function render(){
+ localStorage.setItem(chapter6PageKey,String(currentLesson));
  renderTabs(); if(currentLesson===lessons.length){showFinish();return;} const lesson=lessons[currentLesson];
  progressText.textContent=`Lesson ${currentLesson+1} of ${lessons.length}`; progressBar.style.width=`${((currentLesson+1)/lessons.length)*100}%`; finishCard.classList.add('hidden');
  let html=`<section class="card lesson-header"><h2>${lesson.title}</h2><p class="lesson-subtitle">${lesson.subtitle}</p><p><strong>Multiple choice:</strong> Choose an answer and you will know immediately if it is correct. If it is incorrect, try again.</p></section>`;
@@ -139,5 +146,5 @@ document.getElementById('submitResultsBtn').addEventListener('click',()=>{
  form.submit();
  setTimeout(()=>{if(!finished){button.disabled=false;status.textContent='Submission could not be confirmed. Check the grade tracker before trying again.';}},12000);
 });
-document.getElementById('resetBtn').addEventListener('click',()=>{currentLesson=0;answers.forEach(a=>a.fill(null));questionCorrect.forEach(a=>a.fill(false));codingChecked.fill(false);codingPassed.fill(false);codeEntries.fill('');optionOrders=makeOptionOrders();localStorage.removeItem(CHAPTER6_SENT_KEY);render();window.scrollTo({top:0,behavior:'smooth'});});
+document.getElementById('resetBtn').addEventListener('click',()=>{currentLesson=0;answers.forEach(a=>a.fill(null));questionCorrect.forEach(a=>a.fill(false));codingChecked.fill(false);codingPassed.fill(false);codeEntries.fill('');optionOrders=makeOptionOrders();localStorage.removeItem(CHAPTER6_SENT_KEY);localStorage.removeItem(chapter6PageKey);render();window.scrollTo({top:0,behavior:'smooth'});});
 render();
