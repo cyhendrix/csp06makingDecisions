@@ -46,12 +46,13 @@ try{
 
 const answers=lessons.map(l=>Array(l.questions.length).fill(null));
 const questionCorrect=lessons.map(l=>Array(l.questions.length).fill(false));
+const questionAttempts=lessons.map(l=>Array(l.questions.length).fill(0));
 const codingChecked=Array(lessons.length).fill(false);
 const codingPassed=Array(lessons.length).fill(false);
 const codeEntries=Array(lessons.length).fill('');
 const chapter6ProgressKey='csp06-saved-progress-v1';
 function saveProgress(){
- localStorage.setItem(chapter6ProgressKey,JSON.stringify({answers,questionCorrect,codingChecked,codingPassed,codeEntries,optionOrders}));
+ localStorage.setItem(chapter6ProgressKey,JSON.stringify({answers,questionCorrect,questionAttempts,codingChecked,codingPassed,codeEntries,optionOrders}));
 }
 function restoreProgress(){
  try{
@@ -62,6 +63,8 @@ function restoreProgress(){
     const a=p.answers?.[i]?.[qi];
     if(Number.isInteger(a)&&a>=0&&a<q.options.length)answers[i][qi]=a;
     questionCorrect[i][qi]=answers[i][qi]===q.answer&&p.questionCorrect?.[i]?.[qi]===true;
+    questionAttempts[i][qi]=Math.min(2,Math.max(0,Number(p.questionAttempts?.[i]?.[qi])|| (questionCorrect[i][qi]?1:0)));
+    if(questionAttempts[i][qi]===0&&answers[i][qi]!==null)questionAttempts[i][qi]=1;
    });
    codeEntries[i]=typeof p.codeEntries?.[i]==='string'?p.codeEntries[i]:'';
    codingChecked[i]=p.codingChecked?.[i]===true;
@@ -83,7 +86,7 @@ function highlightPrompt(text,words=[]){let safe=escapeHtml(text);words.forEach(
 function shuffleArray(items){const copy=[...items];for(let i=copy.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[copy[i],copy[j]]=[copy[j],copy[i]];}return copy;}
 function makeOptionOrders(){return lessons.map(l=>l.questions.map(q=>shuffleArray(q.options.map((text,originalIndex)=>({text,originalIndex})))));}
 let optionOrders=makeOptionOrders();
-function lessonReady(i){return questionCorrect[i].every(Boolean)&&codingPassed[i];}
+function lessonReady(i){return questionAttempts[i].every(n=>n>=2)||questionAttempts[i].every((n,qi)=>n>=2||questionCorrect[i][qi]) ? codingPassed[i] : false;}
 function allLessonsReady(){return lessons.every((_,i)=>lessonReady(i));}
 
 function renderTabs(){
@@ -95,9 +98,9 @@ function render(){
  localStorage.setItem(chapter6PageKey,String(currentLesson));
  if(currentLesson===lessons.length&&!allLessonsReady())currentLesson=lessons.findIndex((_,i)=>!lessonReady(i));renderTabs(); if(currentLesson===lessons.length){showFinish();return;} const lesson=lessons[currentLesson];
  progressText.textContent=`Lesson ${currentLesson+1} of ${lessons.length}`; progressBar.style.width=`${((currentLesson+1)/lessons.length)*100}%`; finishCard.classList.add('hidden');
- let html=`<section class="card lesson-header"><h2>${lesson.title}</h2><p class="lesson-subtitle">${lesson.subtitle}</p><p><strong>Multiple choice:</strong> Choose an answer and you will know immediately if it is correct. If it is incorrect, try again.</p></section>`;
- lesson.questions.forEach((q,qi)=>{const shuffled=optionOrders[currentLesson][qi]; const done=questionCorrect[currentLesson][qi];
-   html+=`<article class="card question"><div class="qtop"><h2>Question ${qi+1}: ${q.title}</h2><span class="badge">Lesson ${currentLesson+1}</span></div><p class="prompt">${highlightPrompt(q.prompt,q.highlight||[])}</p>${q.code?`<div class="code">${escapeHtml(q.code)}</div>`:''}<div class="options">${shuffled.map(item=>`<button class="option ${done&&item.originalIndex===q.answer?'correct':''}" data-q="${qi}" data-o="${item.originalIndex}" ${done?'disabled':''}>${escapeHtml(item.text)}</button>`).join('')}</div><div class="feedback ${done?'good':''}" id="feedback-${qi}">${done?'✓ Correct — '+q.feedback:''}</div></article>`;
+ let html=`<section class="card lesson-header"><h2>${lesson.title}</h2><p class="lesson-subtitle">${lesson.subtitle}</p><p><strong>Multiple choice:</strong> You have two attempts per question. A correct answer finishes the question immediately; after two incorrect attempts, the question is marked complete.</p></section>`;
+ lesson.questions.forEach((q,qi)=>{const shuffled=optionOrders[currentLesson][qi]; const done=questionCorrect[currentLesson][qi]||questionAttempts[currentLesson][qi]>=2;
+   html+=`<article class="card question"><div class="qtop"><h2>Question ${qi+1}: ${q.title}</h2><span class="badge">Lesson ${currentLesson+1}</span></div><p class="prompt">${highlightPrompt(q.prompt,q.highlight||[])}</p>${q.code?`<div class="code">${escapeHtml(q.code)}</div>`:''}<div class="options">${shuffled.map(item=>`<button class="option ${questionCorrect[currentLesson][qi]&&item.originalIndex===q.answer?'correct':''}" data-q="${qi}" data-o="${item.originalIndex}" ${done?'disabled':''}>${escapeHtml(item.text)}</button>`).join('')}</div><div class="feedback ${done?'good':''}" id="feedback-${qi}">${done?(questionCorrect[currentLesson][qi]?'✓ Correct — '+q.feedback:'Two attempts used. Correct answer: '+q.options[q.answer]+'. '+q.feedback):''}</div></article>`;
  });
  const c=lesson.coding;
  html+=`<section class="card coding-card"><h2>${c.title}</h2><div class="scenario"><strong>Scenario:</strong> ${c.scenario}</div><b>Your program should:</b><ul class="requirements">${c.requirements.map(r=>`<li>${r}</li>`).join('')}</ul><div class="starter">${escapeHtml(c.starter)}</div><textarea class="code-entry" id="codeEntry" spellcheck="false" placeholder="Type your Python code here...">${escapeHtml(codeEntries[currentLesson])}</textarea><button class="primary" id="checkCodeBtn">Check My Code</button><div class="feedback" id="codeFeedback"></div><div id="codeResults"></div></section>`;
@@ -113,9 +116,17 @@ function render(){
 
 function checkQuestionImmediately(e){
  const qi=Number(e.currentTarget.dataset.q),oi=Number(e.currentTarget.dataset.o),q=lessons[currentLesson].questions[qi],fb=document.getElementById(`feedback-${qi}`),buttons=[...document.querySelectorAll(`[data-q="${qi}"]`)];
- answers[currentLesson][qi]=oi; buttons.forEach(b=>b.classList.remove('selected','correct','incorrect'));
- if(oi===q.answer){questionCorrect[currentLesson][qi]=true;e.currentTarget.classList.add('correct');fb.className='feedback good';fb.textContent='✓ Correct — '+q.feedback;buttons.forEach(b=>b.disabled=true);}
- else{e.currentTarget.classList.add('incorrect');fb.className='feedback bad';fb.textContent='Not quite. Try again.';}
+ if(questionCorrect[currentLesson][qi]||questionAttempts[currentLesson][qi]>=2)return;
+ answers[currentLesson][qi]=oi;
+ questionAttempts[currentLesson][qi]++;
+ buttons.forEach(b=>b.classList.remove('selected','correct','incorrect'));
+ if(oi===q.answer){
+  questionCorrect[currentLesson][qi]=true;e.currentTarget.classList.add('correct');fb.className='feedback good';fb.textContent='✓ Correct — '+q.feedback;buttons.forEach(b=>b.disabled=true);
+ }else if(questionAttempts[currentLesson][qi]>=2){
+  e.currentTarget.classList.add('incorrect');fb.className='feedback bad';fb.textContent='Two attempts used. Correct answer: '+q.options[q.answer]+'. '+q.feedback;buttons.forEach(b=>b.disabled=true);
+ }else{
+  e.currentTarget.classList.add('incorrect');fb.className='feedback bad';fb.textContent='Not quite. You have one more attempt.';
+ }
  saveProgress();updateNext();
 }
 
@@ -132,13 +143,14 @@ function nextLesson(){if(!lessonReady(currentLesson))return;if(currentLesson<les
 function clearCurrentLesson(){
  const i=currentLesson;
  if(!confirm('Clear Lesson '+(i+1)+'? Your other lessons will stay saved.'))return;
- answers[i].fill(null);questionCorrect[i].fill(false);codingChecked[i]=false;codingPassed[i]=false;codeEntries[i]='';
+ answers[i].fill(null);questionCorrect[i].fill(false);questionAttempts[i].fill(0);codingChecked[i]=false;codingPassed[i]=false;codeEntries[i]='';
  optionOrders[i]=makeOptionOrders()[i];localStorage.removeItem(CHAPTER6_SENT_KEY);saveProgress();render();
 }
+function gradePercent(){const correct=questionCorrect.reduce((n,a)=>n+a.filter(Boolean).length,0)+codingPassed.filter(Boolean).length;const total=lessons.reduce((n,l)=>n+l.questions.length+1,0);return Math.round(correct/total*100);}
 function showFinish(){
  lessonView.innerHTML='';finishCard.classList.remove('hidden');
  const correct=questionCorrect.reduce((n,a)=>n+a.filter(Boolean).length,0),possible=lessons.reduce((n,l)=>n+l.questions.length,0);
- document.getElementById('finalScore').textContent=`Multiple-choice questions: ${correct} / ${possible} correct. Coding scenarios: ${codingPassed.filter(Boolean).length} / ${lessons.length} complete.`;
+ document.getElementById('finalScore').textContent=`Score: ${gradePercent()}% — Multiple-choice: ${correct} / ${possible} correct; coding: ${codingPassed.filter(Boolean).length} / ${lessons.length} complete.`;
  document.getElementById('resultsBreakdown').innerHTML=lessons.map((l,i)=>`<div class="result-row"><strong>Lesson ${i+1}:</strong> ${questionCorrect[i].filter(Boolean).length} / ${l.questions.length} questions correct; coding ${codingPassed[i]?'complete':'incomplete'}</div>`).join('');
  refreshSubmission();
  progressText.textContent='Results';progressBar.style.width='100%';
@@ -150,11 +162,11 @@ function refreshSubmission(){
  const button=document.getElementById('submitResultsBtn');
  button.hidden=sent;
  button.disabled=sent||!lessons.every((_,i)=>lessonReady(i));
- document.getElementById('submissionStatus').textContent=sent?'Grade submission was sent. Please verify it appears in your grade tracker.':lessons.every((_,i)=>lessonReady(i))?'All four lessons complete. Submit your grade below.':'Complete all four lessons correctly before submitting.';
+ document.getElementById('submissionStatus').textContent=sent?'Grade submission was sent. Please verify it appears in your grade tracker.':lessons.every((_,i)=>lessonReady(i))?'All four lessons complete. Submit your grade below.':'Complete every question (correct or two attempts used) and all coding challenges before submitting.';
 }
 document.getElementById('submitResultsBtn').addEventListener('click',()=>{
  const status=document.getElementById('submissionStatus');
- if(!lessons.every((_,i)=>lessonReady(i))){status.textContent='Complete every question and coding challenge correctly before submitting.';return;}
+ if(!lessons.every((_,i)=>lessonReady(i))){status.textContent='Finish all questions within two attempts and complete all coding challenges before submitting.';return;}
  let student=null;
  try{student=JSON.parse(localStorage.getItem('csp06-student-info')||'null')}catch(e){}
  if(!student?.first||!student?.last||!student?.period){status.textContent='Student information is missing. Please complete the student information form.';return;}
@@ -162,7 +174,7 @@ document.getElementById('submitResultsBtn').addEventListener('click',()=>{
  button.disabled=true;status.textContent='Sending grade submission…';
  const frame=document.createElement('iframe');frame.name='csp06GradeFrame';frame.style.display='none';document.body.appendChild(frame);
  const form=document.createElement('form');form.method='POST';form.action=CHAPTER6_FORM_URL;form.target=frame.name;form.style.display='none';
- const data={'entry.2089413779':student.last+', '+student.first,'entry.890934651':student.period,'entry.646173439':'Chapter 06 | Making Decisions','entry.962158861':'100'};
+ const data={'entry.2089413779':student.last+', '+student.first,'entry.890934651':student.period,'entry.646173439':'Chapter 06 | Making Decisions','entry.962158861':String(gradePercent())};
  Object.entries(data).forEach(([name,value])=>{const field=document.createElement('input');field.name=name;field.value=value;form.appendChild(field)});
  document.body.appendChild(form);
  let finished=false;
@@ -170,5 +182,5 @@ document.getElementById('submitResultsBtn').addEventListener('click',()=>{
  form.submit();
  setTimeout(()=>{if(!finished){button.disabled=false;status.textContent='Submission could not be confirmed. Check the grade tracker before trying again.';}},12000);
 });
-document.getElementById('resetBtn').addEventListener('click',()=>{if(!confirm('Reset all answers and coding work? This cannot be undone.'))return;currentLesson=0;answers.forEach(a=>a.fill(null));questionCorrect.forEach(a=>a.fill(false));codingChecked.fill(false);codingPassed.fill(false);codeEntries.fill('');optionOrders=makeOptionOrders();localStorage.removeItem(chapter6ProgressKey);localStorage.removeItem(CHAPTER6_SENT_KEY);localStorage.removeItem(chapter6PageKey);render();window.scrollTo({top:0,behavior:'smooth'});});
+document.getElementById('resetBtn').addEventListener('click',()=>{if(!confirm('Reset all answers and coding work? This cannot be undone.'))return;currentLesson=0;answers.forEach(a=>a.fill(null));questionCorrect.forEach(a=>a.fill(false));questionAttempts.forEach(a=>a.fill(0));codingChecked.fill(false);codingPassed.fill(false);codeEntries.fill('');optionOrders=makeOptionOrders();localStorage.removeItem(chapter6ProgressKey);localStorage.removeItem(CHAPTER6_SENT_KEY);localStorage.removeItem(chapter6PageKey);render();window.scrollTo({top:0,behavior:'smooth'});});
 render();
