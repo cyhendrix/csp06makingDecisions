@@ -11,3 +11,5 @@
 .student-note{font-size:13px;color:#654b78}
 #studentError{color:#9d1b1b;font-weight:bold}
 @media(max-width:650px){.student-fields{grid-template-columns:1fr}}
+
+[hidden]{display:none!important}
