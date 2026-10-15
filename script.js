@@ -77,10 +77,10 @@ function render(){
  });
  const c=lesson.coding;
  html+=`<section class="card coding-card"><h2>${c.title}</h2><div class="scenario"><strong>Scenario:</strong> ${c.scenario}</div><b>Your program should:</b><ul class="requirements">${c.requirements.map(r=>`<li>${r}</li>`).join('')}</ul><div class="starter">${escapeHtml(c.starter)}</div><textarea class="code-entry" id="codeEntry" spellcheck="false" placeholder="Type your Python code here...">${escapeHtml(codeEntries[currentLesson])}</textarea><button class="primary" id="checkCodeBtn">Check My Code</button><div class="feedback" id="codeFeedback"></div><div id="codeResults"></div></section>`;
- html+=`<div class="lesson-actions">${currentLesson>0?'<button class="secondary" id="backBtn">Previous Lesson</button>':''}<button class="secondary" id="clearLessonBtn" type="button">Clear This Lesson</button><button class="next-btn" id="nextBtn" ${lessonReady(currentLesson)?'':'disabled'}>${currentLesson===lessons.length-1?'View Results':'Next Lesson'}</button></div>`;
+ html+=`<div class="lesson-actions">${currentLesson>0?'<button class="secondary" id="backBtn">Previous Lesson</button>':''}<button class="secondary" id="clearLessonBtn" type="button">Clear This Lesson</button><button class="next-btn" id="nextBtn" ${currentLesson===lessons.length-1||lessonReady(currentLesson)?'':'disabled'}>${currentLesson===lessons.length-1?'View Results':'Next Lesson'}</button></div>`;
  lessonView.innerHTML=html;
  document.querySelectorAll('.option').forEach(btn=>btn.addEventListener('click',checkQuestionImmediately));
- document.getElementById('codeEntry').addEventListener('input',e=>{codeEntries[currentLesson]=e.target.value;codingChecked[currentLesson]=false;codingPassed[currentLesson]=false;document.getElementById('nextBtn').disabled=true;});
+ document.getElementById('codeEntry').addEventListener('input',e=>{codeEntries[currentLesson]=e.target.value;codingChecked[currentLesson]=false;codingPassed[currentLesson]=false;document.getElementById('nextBtn').disabled=currentLesson!==lessons.length-1;});
  document.getElementById('checkCodeBtn').addEventListener('click',checkCode);
  const back=document.getElementById('backBtn');if(back)back.addEventListener('click',()=>{currentLesson--;render();window.scrollTo({top:0,behavior:'smooth'});});
  document.getElementById('nextBtn').addEventListener('click',nextLesson);document.getElementById('clearLessonBtn').addEventListener('click',clearCurrentLesson);
@@ -103,8 +103,8 @@ function displayCodeResults(precomputed=null){
  fb.className=`feedback ${pass?'good':'bad'}`; fb.textContent=pass?'✓ Your code includes all of the key pieces.':'Your code needs a little more work. Use the checklist below, revise it, and check again.';
  results.innerHTML=checks.map(x=>`<div class="result-row">${x.pass?'✓':'○'} ${x.label}</div>`).join('');
 }
-function updateNext(){document.getElementById('nextBtn').disabled=!lessonReady(currentLesson);renderTabs();}
-function nextLesson(){if(!lessonReady(currentLesson))return;if(currentLesson<lessons.length-1){currentLesson++;render();window.scrollTo({top:0,behavior:'smooth'});}else{currentLesson=lessons.length;render();}}
+function updateNext(){document.getElementById('nextBtn').disabled=currentLesson!==lessons.length-1&&!lessonReady(currentLesson);renderTabs();}
+function nextLesson(){if(currentLesson<lessons.length-1&&!lessonReady(currentLesson))return;if(currentLesson<lessons.length-1){currentLesson++;render();window.scrollTo({top:0,behavior:'smooth'});}else{currentLesson=lessons.length;render();}}
 function clearCurrentLesson(){
  const i=currentLesson;
  if(!confirm('Clear Lesson '+(i+1)+'? Your other lessons will stay saved.'))return;
