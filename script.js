@@ -49,6 +49,29 @@ const questionCorrect=lessons.map(l=>Array(l.questions.length).fill(false));
 const codingChecked=Array(lessons.length).fill(false);
 const codingPassed=Array(lessons.length).fill(false);
 const codeEntries=Array(lessons.length).fill('');
+const chapter6ProgressKey='csp06-saved-progress-v1';
+function saveProgress(){
+ localStorage.setItem(chapter6ProgressKey,JSON.stringify({answers,questionCorrect,codingChecked,codingPassed,codeEntries,optionOrders}));
+}
+function restoreProgress(){
+ try{
+  const p=JSON.parse(localStorage.getItem(chapter6ProgressKey)||'null');
+  if(!p)return;
+  lessons.forEach((lesson,i)=>{
+   lesson.questions.forEach((q,qi)=>{
+    const a=p.answers?.[i]?.[qi];
+    if(Number.isInteger(a)&&a>=0&&a<q.options.length)answers[i][qi]=a;
+    questionCorrect[i][qi]=answers[i][qi]===q.answer&&p.questionCorrect?.[i]?.[qi]===true;
+   });
+   codeEntries[i]=typeof p.codeEntries?.[i]==='string'?p.codeEntries[i]:'';
+   codingChecked[i]=p.codingChecked?.[i]===true;
+   codingPassed[i]=codingChecked[i]&&lesson.coding.checks.every(ch=>ch.test(codeEntries[i]));
+   const order=p.optionOrders?.[i];
+   if(Array.isArray(order)&&order.length===lesson.questions.length&&order.every((o,qi)=>Array.isArray(o)&&o.length===lesson.questions[qi].options.length&&new Set(o.map(v=>v.originalIndex)).size===o.length))optionOrders[i]=order;
+  });
+ }catch(e){}
+}
+restoreProgress();
 const lessonView=document.getElementById('lessonView');
 const lessonTabs=document.getElementById('lessonTabs');
 const progressText=document.getElementById('progressText');
@@ -61,15 +84,16 @@ function shuffleArray(items){const copy=[...items];for(let i=copy.length-1;i>0;i
 function makeOptionOrders(){return lessons.map(l=>l.questions.map(q=>shuffleArray(q.options.map((text,originalIndex)=>({text,originalIndex})))));}
 let optionOrders=makeOptionOrders();
 function lessonReady(i){return questionCorrect[i].every(Boolean)&&codingPassed[i];}
+function allLessonsReady(){return lessons.every((_,i)=>lessonReady(i));}
 
 function renderTabs(){
- lessonTabs.innerHTML=lessons.map((l,i)=>`<button class="lesson-tab ${i===currentLesson?'active':''} ${lessonReady(i)?'done':''}" data-lesson="${i}">Lesson ${i+1}</button>`).join('')+`<button class="lesson-tab ${currentLesson===lessons.length?'active':''}" id="resultsTab">Results</button>`;
- document.querySelectorAll('[data-lesson]').forEach(b=>b.addEventListener('click',()=>{currentLesson=Number(b.dataset.lesson);render();window.scrollTo({top:0,behavior:'smooth'});}));document.getElementById('resultsTab').addEventListener('click',()=>{currentLesson=lessons.length;render();window.scrollTo({top:0,behavior:'smooth'});});
+ lessonTabs.innerHTML=lessons.map((l,i)=>`<button class="lesson-tab ${i===currentLesson?'active':''} ${lessonReady(i)?'done':''}" data-lesson="${i}">Lesson ${i+1}</button>`).join('')+`<button class="lesson-tab ${currentLesson===lessons.length?'active':''}" id="resultsTab" ${allLessonsReady()?'':'disabled'}>Results</button>`;
+ document.querySelectorAll('[data-lesson]').forEach(b=>b.addEventListener('click',()=>{currentLesson=Number(b.dataset.lesson);render();window.scrollTo({top:0,behavior:'smooth'});}));document.getElementById('resultsTab').addEventListener('click',()=>{if(!allLessonsReady())return;currentLesson=lessons.length;render();window.scrollTo({top:0,behavior:'smooth'});});
 }
 
 function render(){
  localStorage.setItem(chapter6PageKey,String(currentLesson));
- renderTabs(); if(currentLesson===lessons.length){showFinish();return;} const lesson=lessons[currentLesson];
+ if(currentLesson===lessons.length&&!allLessonsReady())currentLesson=lessons.findIndex((_,i)=>!lessonReady(i));renderTabs(); if(currentLesson===lessons.length){showFinish();return;} const lesson=lessons[currentLesson];
  progressText.textContent=`Lesson ${currentLesson+1} of ${lessons.length}`; progressBar.style.width=`${((currentLesson+1)/lessons.length)*100}%`; finishCard.classList.add('hidden');
  let html=`<section class="card lesson-header"><h2>${lesson.title}</h2><p class="lesson-subtitle">${lesson.subtitle}</p><p><strong>Multiple choice:</strong> Choose an answer and you will know immediately if it is correct. If it is incorrect, try again.</p></section>`;
  lesson.questions.forEach((q,qi)=>{const shuffled=optionOrders[currentLesson][qi]; const done=questionCorrect[currentLesson][qi];
@@ -77,10 +101,10 @@ function render(){
  });
  const c=lesson.coding;
  html+=`<section class="card coding-card"><h2>${c.title}</h2><div class="scenario"><strong>Scenario:</strong> ${c.scenario}</div><b>Your program should:</b><ul class="requirements">${c.requirements.map(r=>`<li>${r}</li>`).join('')}</ul><div class="starter">${escapeHtml(c.starter)}</div><textarea class="code-entry" id="codeEntry" spellcheck="false" placeholder="Type your Python code here...">${escapeHtml(codeEntries[currentLesson])}</textarea><button class="primary" id="checkCodeBtn">Check My Code</button><div class="feedback" id="codeFeedback"></div><div id="codeResults"></div></section>`;
- html+=`<div class="lesson-actions">${currentLesson>0?'<button class="secondary" id="backBtn">Previous Lesson</button>':''}<button class="secondary" id="clearLessonBtn" type="button">Clear This Lesson</button><button class="next-btn" id="nextBtn" ${currentLesson===lessons.length-1||lessonReady(currentLesson)?'':'disabled'}>${currentLesson===lessons.length-1?'View Results':'Next Lesson'}</button></div>`;
+ html+=`<div class="lesson-actions">${currentLesson>0?'<button class="secondary" id="backBtn">Previous Lesson</button>':''}<button class="secondary" id="clearLessonBtn" type="button">Clear This Lesson</button><button class="next-btn" id="nextBtn" ${lessonReady(currentLesson)?'':'disabled'}>${currentLesson===lessons.length-1?'View Results':'Next Lesson'}</button></div>`;
  lessonView.innerHTML=html;
  document.querySelectorAll('.option').forEach(btn=>btn.addEventListener('click',checkQuestionImmediately));
- document.getElementById('codeEntry').addEventListener('input',e=>{codeEntries[currentLesson]=e.target.value;codingChecked[currentLesson]=false;codingPassed[currentLesson]=false;document.getElementById('nextBtn').disabled=currentLesson!==lessons.length-1;});
+ document.getElementById('codeEntry').addEventListener('input',e=>{codeEntries[currentLesson]=e.target.value;codingChecked[currentLesson]=false;codingPassed[currentLesson]=false;document.getElementById('nextBtn').disabled=true;saveProgress();renderTabs();});
  document.getElementById('checkCodeBtn').addEventListener('click',checkCode);
  const back=document.getElementById('backBtn');if(back)back.addEventListener('click',()=>{currentLesson--;render();window.scrollTo({top:0,behavior:'smooth'});});
  document.getElementById('nextBtn').addEventListener('click',nextLesson);document.getElementById('clearLessonBtn').addEventListener('click',clearCurrentLesson);
@@ -92,24 +116,24 @@ function checkQuestionImmediately(e){
  answers[currentLesson][qi]=oi; buttons.forEach(b=>b.classList.remove('selected','correct','incorrect'));
  if(oi===q.answer){questionCorrect[currentLesson][qi]=true;e.currentTarget.classList.add('correct');fb.className='feedback good';fb.textContent='✓ Correct — '+q.feedback;buttons.forEach(b=>b.disabled=true);}
  else{e.currentTarget.classList.add('incorrect');fb.className='feedback bad';fb.textContent='Not quite. Try again.';}
- updateNext();
+ saveProgress();updateNext();
 }
 
 function checkCode(){
- codingChecked[currentLesson]=true; const checks=lessons[currentLesson].coding.checks.map(ch=>({label:ch.label,pass:ch.test(codeEntries[currentLesson])})); codingPassed[currentLesson]=checks.every(x=>x.pass); displayCodeResults(checks); updateNext();
+ codingChecked[currentLesson]=true; const checks=lessons[currentLesson].coding.checks.map(ch=>({label:ch.label,pass:ch.test(codeEntries[currentLesson])})); codingPassed[currentLesson]=checks.every(x=>x.pass); displayCodeResults(checks);saveProgress(); updateNext();
 }
 function displayCodeResults(precomputed=null){
  const checks=precomputed||lessons[currentLesson].coding.checks.map(ch=>({label:ch.label,pass:ch.test(codeEntries[currentLesson])})); const pass=checks.every(x=>x.pass),fb=document.getElementById('codeFeedback'),results=document.getElementById('codeResults');
  fb.className=`feedback ${pass?'good':'bad'}`; fb.textContent=pass?'✓ Your code includes all of the key pieces.':'Your code needs a little more work. Use the checklist below, revise it, and check again.';
  results.innerHTML=checks.map(x=>`<div class="result-row">${x.pass?'✓':'○'} ${x.label}</div>`).join('');
 }
-function updateNext(){document.getElementById('nextBtn').disabled=currentLesson!==lessons.length-1&&!lessonReady(currentLesson);renderTabs();}
-function nextLesson(){if(currentLesson<lessons.length-1&&!lessonReady(currentLesson))return;if(currentLesson<lessons.length-1){currentLesson++;render();window.scrollTo({top:0,behavior:'smooth'});}else{currentLesson=lessons.length;render();}}
+function updateNext(){document.getElementById('nextBtn').disabled=!lessonReady(currentLesson);renderTabs();}
+function nextLesson(){if(!lessonReady(currentLesson))return;if(currentLesson<lessons.length-1){currentLesson++;render();window.scrollTo({top:0,behavior:'smooth'});}else{currentLesson=lessons.length;render();}}
 function clearCurrentLesson(){
  const i=currentLesson;
  if(!confirm('Clear Lesson '+(i+1)+'? Your other lessons will stay saved.'))return;
  answers[i].fill(null);questionCorrect[i].fill(false);codingChecked[i]=false;codingPassed[i]=false;codeEntries[i]='';
- optionOrders[i]=makeOptionOrders()[i];localStorage.removeItem(CHAPTER6_SENT_KEY);render();
+ optionOrders[i]=makeOptionOrders()[i];localStorage.removeItem(CHAPTER6_SENT_KEY);saveProgress();render();
 }
 function showFinish(){
  lessonView.innerHTML='';finishCard.classList.remove('hidden');
@@ -146,5 +170,5 @@ document.getElementById('submitResultsBtn').addEventListener('click',()=>{
  form.submit();
  setTimeout(()=>{if(!finished){button.disabled=false;status.textContent='Submission could not be confirmed. Check the grade tracker before trying again.';}},12000);
 });
-document.getElementById('resetBtn').addEventListener('click',()=>{currentLesson=0;answers.forEach(a=>a.fill(null));questionCorrect.forEach(a=>a.fill(false));codingChecked.fill(false);codingPassed.fill(false);codeEntries.fill('');optionOrders=makeOptionOrders();localStorage.removeItem(CHAPTER6_SENT_KEY);localStorage.removeItem(chapter6PageKey);render();window.scrollTo({top:0,behavior:'smooth'});});
+document.getElementById('resetBtn').addEventListener('click',()=>{if(!confirm('Reset all answers and coding work? This cannot be undone.'))return;currentLesson=0;answers.forEach(a=>a.fill(null));questionCorrect.forEach(a=>a.fill(false));codingChecked.fill(false);codingPassed.fill(false);codeEntries.fill('');optionOrders=makeOptionOrders();localStorage.removeItem(chapter6ProgressKey);localStorage.removeItem(CHAPTER6_SENT_KEY);localStorage.removeItem(chapter6PageKey);render();window.scrollTo({top:0,behavior:'smooth'});});
 render();
