@@ -68,7 +68,7 @@ function restoreProgress(){
    });
    codeEntries[i]=typeof p.codeEntries?.[i]==='string'?p.codeEntries[i]:'';
    codingChecked[i]=p.codingChecked?.[i]===true;
-   codingPassed[i]=codingChecked[i]&&lesson.coding.checks.every(ch=>ch.test(codeEntries[i]));
+   codingPassed[i]=codingChecked[i]&&p.codingPassed?.[i]===true;
    const order=p.optionOrders?.[i];
    if(Array.isArray(order)&&order.length===lesson.questions.length&&order.every((o,qi)=>Array.isArray(o)&&o.length===lesson.questions[qi].options.length&&new Set(o.map(v=>v.originalIndex)).size===o.length))optionOrders[i]=order;
   });
@@ -130,13 +130,95 @@ function checkQuestionImmediately(e){
  saveProgress();updateNext();
 }
 
-function checkCode(){
- codingChecked[currentLesson]=true; const checks=lessons[currentLesson].coding.checks.map(ch=>({label:ch.label,pass:ch.test(codeEntries[currentLesson])})); codingPassed[currentLesson]=checks.every(x=>x.pass); displayCodeResults(checks);saveProgress(); updateNext();
+
+let pythonRuntimePromise=null;
+function loadPython(){
+ if(pythonRuntimePromise)return pythonRuntimePromise;
+ pythonRuntimePromise=new Promise((resolve,reject)=>{
+  if(window.loadPyodide){resolve(window.loadPyodide());return;}
+  const script=document.createElement('script');
+  script.src='https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js';
+  script.onload=()=>window.loadPyodide().then(resolve,reject);
+  script.onerror=()=>reject(new Error('Python engine could not load. Check your internet connection.'));
+  document.head.appendChild(script);
+ }).catch(e=>{pythonRuntimePromise=null;throw e});
+ return pythonRuntimePromise;
 }
-function displayCodeResults(precomputed=null){
- const checks=precomputed||lessons[currentLesson].coding.checks.map(ch=>({label:ch.label,pass:ch.test(codeEntries[currentLesson])})); const pass=checks.every(x=>x.pass),fb=document.getElementById('codeFeedback'),results=document.getElementById('codeResults');
- fb.className=`feedback ${pass?'good':'bad'}`; fb.textContent=pass?'✓ Your code includes all of the key pieces.':'Your code needs a little more work. Use the checklist below, revise it, and check again.';
- results.innerHTML=checks.map(x=>`<div class="result-row">${x.pass?'✓':'○'} ${x.label}</div>`).join('');
+const pythonTests=[
+ [{age:15,expected:'False'},{age:16,expected:'True'},{age:20,expected:'True'},{age:12,expected:'False'}],
+ [{temperature:72,expected:'Warm'},{temperature:85,expected:'Hot'},{temperature:40,expected:'Cool'},{temperature:60,expected:'Warm'},{temperature:80,expected:'Hot'}],
+ [{age:17,hasPermission:true,expected:'Approved'},{age:15,hasPermission:true,expected:'Not approved'},{age:17,hasPermission:false,expected:'Not approved'},{age:15,hasPermission:false,expected:'Not approved'}],
+ [{playerScore:120,age:20,expected:'Special Group'},{playerScore:120,age:12,expected:'Special Group'},{playerScore:100,age:20,expected:''},{playerScore:120,age:16,expected:''},{playerScore:90,age:12,expected:''}]
+];
+async function checkCode(){
+ const lessonIndex=currentLesson,code=codeEntries[lessonIndex],button=document.getElementById('checkCodeBtn');
+ const fb=document.getElementById('codeFeedback'),results=document.getElementById('codeResults');
+ const checks=lessons[lessonIndex].coding.checks.map(ch=>({label:ch.label,pass:ch.test(code)}));
+ button.disabled=true;fb.className='feedback';fb.textContent='Running your Python code and checking the answer key…';results.textContent='';
+ try{
+  const py=await loadPython();
+  // A small AST-based runner prevents imports, file access, loops, and other
+  // unrelated Python features while allowing the expressions in these lessons.
+  const harness=String.raw\`
+import ast, json, io, contextlib
+source = \${JSON.stringify(code)}
+tests = json.loads(\${JSON.stringify(JSON.stringify(pythonTests[lessonIndex]))})
+allowed = (ast.Module,ast.Assign,ast.Name,ast.Store,ast.Load,ast.Constant,ast.Expr,
+           ast.Call,ast.Compare,ast.Gt,ast.GtE,ast.Lt,ast.LtE,ast.Eq,ast.NotEq,
+           ast.If,ast.BoolOp,ast.And,ast.Or,ast.Not,ast.UnaryOp,ast.USub,
+           ast.BinOp,ast.Add,ast.Sub,ast.Mult,ast.Div,ast.Mod,ast.Tuple,
+           ast.List,ast.Pass)
+result = {"runs": [], "error": ""}
+try:
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if not isinstance(node,allowed):
+            raise ValueError("Only variables, comparisons, if/elif/else, and print() are allowed in this activity.")
+        if isinstance(node,ast.Call) and (not isinstance(node.func,ast.Name) or node.func.id!="print"):
+            raise ValueError("Only print() function calls are allowed in this activity.")
+    for test in tests:
+        class SetValues(ast.NodeTransformer):
+            def visit_Assign(self,node):
+                if len(node.targets)==1 and isinstance(node.targets[0],ast.Name):
+                    name=node.targets[0].id
+                    if name in test:
+                        node.value=ast.Constant(value=test[name])
+                return node
+        test_tree=SetValues().visit(ast.parse(source))
+        ast.fix_missing_locations(test_tree)
+        output=io.StringIO()
+        scope={"__builtins__":{"print":print}}
+        with contextlib.redirect_stdout(output):
+            exec(compile(test_tree,"<student>","exec"),scope,scope)
+        actual=output.getvalue().strip()
+        result["runs"].append({"expected":test["expected"],"actual":actual,
+            "pass":actual==test["expected"],
+            "inputs":{k:v for k,v in test.items() if k!="expected"}})
+except Exception as exc:
+    result["error"]=type(exc).__name__+": "+str(exc)
+json.dumps(result)
+\`;
+  const raw=await py.runPythonAsync(harness);
+  if(currentLesson!==lessonIndex)return;
+  const report=JSON.parse(raw),pass=!report.error&&checks.every(x=>x.pass)&&report.runs.length===pythonTests[lessonIndex].length&&report.runs.every(x=>x.pass);
+  codingChecked[lessonIndex]=true;codingPassed[lessonIndex]=pass;
+  const lines=checks.map(x=>'<div class="result-row">'+(x.pass?'✓':'○')+' '+escapeHtml(x.label)+'</div>');
+  if(report.error)lines.push('<div class="result-row">Python error: '+escapeHtml(report.error)+'</div>');
+  report.runs.forEach((run,i)=>{
+   lines.push('<div class="result-row"><strong>Test '+(i+1)+': '+(run.pass?'✓ Passed':'✗ Needs correction')+'</strong><div>Values: '+escapeHtml(JSON.stringify(run.inputs))+'</div><div>Expected output: <code>'+escapeHtml(run.expected||'(no output)')+'</code></div><div>Your output: <code>'+escapeHtml(run.actual||'(no output)')+'</code></div></div>');
+  });
+  fb.className='feedback '+(pass?'good':'bad');
+  fb.textContent=pass?'✓ Code passed the answer key and all output tests.':'Your program did not pass all checks. Review the output below, edit your code, and try again.';
+  results.innerHTML=lines.join('');
+  saveProgress();updateNext();
+ }catch(e){
+  if(currentLesson===lessonIndex){codingChecked[lessonIndex]=false;codingPassed[lessonIndex]=false;fb.className='feedback bad';fb.textContent='Could not run Python: '+e.message;results.textContent='Your work is saved. Try checking again.';saveProgress();updateNext();}
+ }finally{button.disabled=false;}
+}
+function displayCodeResults(){
+ const fb=document.getElementById('codeFeedback');
+ fb.className='feedback '+(codingPassed[currentLesson]?'good':'');
+ fb.textContent=codingPassed[currentLesson]?'✓ Code passed the answer key and output tests.':'Your previous code check did not pass. Click Check My Code to see the output tests again.';
 }
 function updateNext(){document.getElementById('nextBtn').disabled=!lessonReady(currentLesson);renderTabs();}
 function nextLesson(){if(!lessonReady(currentLesson))return;if(currentLesson<lessons.length-1){currentLesson++;render();window.scrollTo({top:0,behavior:'smooth'});}else{currentLesson=lessons.length;render();}}
