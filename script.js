@@ -102,18 +102,42 @@ function clearCurrentLesson(){
  const i=currentLesson;
  if(!confirm('Clear Lesson '+(i+1)+'? Your other lessons will stay saved.'))return;
  answers[i].fill(null);questionCorrect[i].fill(false);codingChecked[i]=false;codingPassed[i]=false;codeEntries[i]='';
- optionOrders[i]=makeOptionOrders()[i];render();
+ optionOrders[i]=makeOptionOrders()[i];localStorage.removeItem(CHAPTER6_SENT_KEY);render();
 }
 function showFinish(){
  lessonView.innerHTML='';finishCard.classList.remove('hidden');
  const correct=questionCorrect.reduce((n,a)=>n+a.filter(Boolean).length,0),possible=lessons.reduce((n,l)=>n+l.questions.length,0);
  document.getElementById('finalScore').textContent=`Multiple-choice questions: ${correct} / ${possible} correct. Coding scenarios: ${codingPassed.filter(Boolean).length} / ${lessons.length} complete.`;
  document.getElementById('resultsBreakdown').innerHTML=lessons.map((l,i)=>`<div class="result-row"><strong>Lesson ${i+1}:</strong> ${questionCorrect[i].filter(Boolean).length} / ${l.questions.length} questions correct; coding ${codingPassed[i]?'complete':'incomplete'}</div>`).join('');
- document.getElementById('submitResultsBtn').disabled=!lessons.every((_,i)=>lessonReady(i));
+ refreshSubmission();
  progressText.textContent='Results';progressBar.style.width='100%';
 }
+const CHAPTER6_FORM_URL='https://docs.google.com/forms/d/e/1FAIpQLSf9qAF0Ek04CLXOzReYWO-5YVDfY70LYoWWMLaLyC0bG70YUg/formResponse';
+const CHAPTER6_SENT_KEY='csp06-grade-submitted';
+function refreshSubmission(){
+ const sent=localStorage.getItem(CHAPTER6_SENT_KEY)==='1';
+ const button=document.getElementById('submitResultsBtn');
+ button.hidden=sent;
+ button.disabled=sent||!lessons.every((_,i)=>lessonReady(i));
+ document.getElementById('submissionStatus').textContent=sent?'Grade submission was sent. Please verify it appears in your grade tracker.':lessons.every((_,i)=>lessonReady(i))?'All four lessons complete. Submit your grade below.':'Complete all four lessons correctly before submitting.';
+}
 document.getElementById('submitResultsBtn').addEventListener('click',()=>{
- document.getElementById('submissionStatus').textContent='Submission is not connected to a grade sheet yet. Your results have not been sent.';
+ const status=document.getElementById('submissionStatus');
+ if(!lessons.every((_,i)=>lessonReady(i))){status.textContent='Complete every question and coding challenge correctly before submitting.';return;}
+ let student=null;
+ try{student=JSON.parse(localStorage.getItem('csp06-student-info')||'null')}catch(e){}
+ if(!student?.first||!student?.last||!student?.period){status.textContent='Student information is missing. Please complete the student information form.';return;}
+ const button=document.getElementById('submitResultsBtn');
+ button.disabled=true;status.textContent='Sending grade submission…';
+ const frame=document.createElement('iframe');frame.name='csp06GradeFrame';frame.style.display='none';document.body.appendChild(frame);
+ const form=document.createElement('form');form.method='POST';form.action=CHAPTER6_FORM_URL;form.target=frame.name;form.style.display='none';
+ const data={'entry.2089413779':student.last+', '+student.first,'entry.890934651':student.period,'entry.646173439':'Chapter 06 | Making Decisions','entry.962158861':'100'};
+ Object.entries(data).forEach(([name,value])=>{const field=document.createElement('input');field.name=name;field.value=value;form.appendChild(field)});
+ document.body.appendChild(form);
+ let finished=false;
+ frame.addEventListener('load',()=>{if(finished)return;finished=true;localStorage.setItem(CHAPTER6_SENT_KEY,'1');form.remove();frame.remove();refreshSubmission();});
+ form.submit();
+ setTimeout(()=>{if(!finished){button.disabled=false;status.textContent='Submission could not be confirmed. Check the grade tracker before trying again.';}},12000);
 });
-document.getElementById('resetBtn').addEventListener('click',()=>{currentLesson=0;answers.forEach(a=>a.fill(null));questionCorrect.forEach(a=>a.fill(false));codingChecked.fill(false);codingPassed.fill(false);codeEntries.fill('');optionOrders=makeOptionOrders();render();window.scrollTo({top:0,behavior:'smooth'});});
+document.getElementById('resetBtn').addEventListener('click',()=>{currentLesson=0;answers.forEach(a=>a.fill(null));questionCorrect.forEach(a=>a.fill(false));codingChecked.fill(false);codingPassed.fill(false);codeEntries.fill('');optionOrders=makeOptionOrders();localStorage.removeItem(CHAPTER6_SENT_KEY);render();window.scrollTo({top:0,behavior:'smooth'});});
 render();
