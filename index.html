@@ -46,6 +46,7 @@ document.getElementById('studentForm').addEventListener('submit',function(e){
 e.preventDefault();const v={first:first.value.trim(),last:last.value.trim(),period:period.value};
 if(!v.first||!v.last||!v.period){document.getElementById('studentError').textContent='Please complete all three fields.';return;}
 localStorage.setItem(key,JSON.stringify(v));
+sessionStorage.setItem('csp06-lab-started','1');
 document.getElementById('studentScreen').hidden=true;
 document.getElementById('labContent').hidden=false;
 document.getElementById('labProgress').hidden=false;
@@ -53,7 +54,7 @@ window.scrollTo(0,0);
 });
 try{
  const saved=JSON.parse(localStorage.getItem(key)||'null');
- if(saved?.first&&saved?.last&&saved?.period){
+ if(sessionStorage.getItem('csp06-lab-started')==='1'&&saved?.first&&saved?.last&&saved?.period){
   document.getElementById('studentScreen').hidden=true;
   document.getElementById('labContent').hidden=false;
   document.getElementById('labProgress').hidden=false;
